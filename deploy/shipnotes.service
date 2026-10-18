@@ -1,0 +1,25 @@
+[Unit]
+Description=ShipNotes web app
+After=network.target shipnotes-llm.service
+Wants=shipnotes-llm.service
+
+[Service]
+User=shipnotes
+Group=shipnotes
+WorkingDirectory=/opt/shipnotes/app
+Environment=SHIPNOTES_HOST=127.0.0.1
+Environment=SHIPNOTES_PORT=8411
+Environment=SHIPNOTES_LLM_URL=http://127.0.0.1:8412
+# Optional: raise the GitHub API limit from 60 to 5,000 requests/hour.
+# EnvironmentFile=-/opt/shipnotes/env
+ExecStart=/usr/bin/python3 -m shipnotes.server
+Restart=on-failure
+RestartSec=3
+MemoryMax=200M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

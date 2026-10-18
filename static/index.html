@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShipNotes: release notes from git commits, written by an open model</title>
+<meta name="description" content="Paste git commits or point at a public GitHub repo. ShipNotes drops the internal noise and writes plain-English release notes with Gemma 3 1B running on a $5 server.">
+<style>
+  :root {
+    --bg: #f7f6f2; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a65; --line: #e4e2dc;
+    --accent: #1f6f4a; --accent-ink: #ffffff; --new: #1f6f4a; --imp: #2b5c9e; --fix: #a3532a;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Noto Sans SC", sans-serif; }
+  main { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+  header h1 { font-size: 30px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header h1 span { color: var(--accent); }
+  header p { margin: 0; color: var(--muted); max-width: 680px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 20px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 14px; }
+  .tab { border: 1px solid var(--line); background: transparent; padding: 7px 14px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 14px; color: var(--muted); }
+  .tab[aria-selected="true"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+  textarea, input, select { font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; background: #fcfcfa; color: var(--ink); width: 100%; }
+  textarea { font-family: var(--mono); font-size: 13px; min-height: 230px; resize: vertical; }
+  label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  .row { display: grid; gap: 12px; grid-template-columns: 2fr 1fr 1fr; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-top: 14px; }
+  .controls > div { min-width: 140px; }
+  .controls .grow { flex: 1; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 10px 20px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { opacity: .55; cursor: wait; }
+  button.link { background: none; border: 0; color: var(--accent); cursor: pointer; font: inherit; font-size: 14px; padding: 0; text-decoration: underline; }
+  .hint { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .hidden { display: none !important; }
+  .status { font-size: 14px; color: var(--muted); margin-top: 12px; min-height: 22px; }
+  .status.err { color: #a3262a; }
+  .out { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .out, .row { grid-template-columns: 1fr; } }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  h3 { font-size: 17px; margin: 16px 0 6px; }
+  h3.new { color: var(--new); } h3.improved { color: var(--imp); } h3.fixed { color: var(--fix); }
+  ul.notes { margin: 0; padding-left: 20px; }
+  ul.notes li { margin: 4px 0; }
+  ul.notes li .orig { display: block; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .tag { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--muted); margin-left: 4px; }
+  .announce { background: #f1f6f2; border-radius: 8px; padding: 14px; font-size: 15px; min-height: 60px; }
+  pre.md { font-family: var(--mono); font-size: 12.5px; background: #fcfcfa; border: 1px solid var(--line); border-radius: 8px; padding: 12px; white-space: pre-wrap; max-height: 360px; overflow: auto; margin: 0; }
+  .bar { display: flex; justify-content: space-between; align-items: center; margin: 14px 0 8px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 16px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 20px; }
+  .stat span { font-size: 12px; color: var(--muted); }
+  .stat.cost b { color: var(--accent); }
+  details { margin-top: 14px; font-size: 14px; }
+  details li { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  footer { margin-top: 28px; font-size: 13px; color: var(--muted); }
+  footer p { margin: 6px 0; }
+  .spinner { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); margin-right: 6px; animation: pulse 1s infinite ease-in-out; }
+  @keyframes pulse { 0%,100% { opacity: .2 } 50% { opacity: 1 } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Ship<span>Notes</span></h1>
+    <p>Turn a pile of git commits into release notes your users will actually read. Internal noise is dropped by plain rules; an open model (Gemma&nbsp;3&nbsp;1B) rewrites what's left, one line at a time, on a single CPU core.</p>
+  </header>
+
+  <section class="card" aria-label="Input">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true" data-mode="text">Paste commits</button>
+      <button class="tab" role="tab" aria-selected="false" data-mode="repo">Try it on a public repo</button>
+    </div>
+
+    <div id="mode-text">
+      <label for="text">One commit per line. <code>git log --oneline v1.3.0..v1.4.0</code> output works as-is.</label>
+      <textarea id="text" spellcheck="false"></textarea>
+      <div class="hint"><button class="link" id="sample">Load the sample</button> &middot; <button class="link" id="clear">Clear</button> &middot; Max 64 KB.</div>
+    </div>
+
+    <div id="mode-repo" class="hidden">
+      <div class="row">
+        <div><label for="repo">Public GitHub repo</label><input id="repo" placeholder="https://github.com/owner/repo" value="https://github.com/simonw/llm"></div>
+        <div><label for="from">From tag/commit</label><input id="from" placeholder="previous tag"></div>
+        <div><label for="to">To tag/branch</label><input id="to" placeholder="latest tag"></div>
+      </div>
+      <div class="hint">Leave both refs empty to compare the two most recent tags. Commits come from the public GitHub API; nothing else is read.</div>
+    </div>
+
+    <div class="controls">
+      <div class="grow"><label for="title">Release name (optional)</label><input id="title" placeholder="e.g. v1.4.0"></div>
+      <div><label for="lang">Language</label>
+        <select id="lang"><option value="en">English</option><option value="zh">中文 (Chinese)</option></select></div>
+      <div><button class="primary" id="go">Write release notes</button></div>
+    </div>
+    <div class="status" id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="card hidden" id="result" aria-label="Result">
+    <div class="out">
+      <div>
+        <h2>Release notes</h2>
+        <div id="live"></div>
+        <details id="dropped-box"><summary id="dropped-sum"></summary><ul id="dropped"></ul></details>
+      </div>
+      <div>
+        <h2>“What's new” announcement</h2>
+        <div class="announce" id="announce"><span class="spinner"></span>waiting for the notes…</div>
+        <div class="bar"><h2 style="margin:0">Markdown</h2><button class="link" id="copy-md">Copy</button></div>
+        <pre class="md" id="md">…</pre>
+        <div class="bar" style="justify-content:flex-end"><button class="link" id="copy-ann">Copy announcement</button></div>
+      </div>
+    </div>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <footer>
+    <p>Runs <b>Gemma 3 1B</b> (open weights, Q4_K_M GGUF) on <b>llama.cpp</b>, one thread, on a small VPS. Requests are handled one at a time, so you might wait in a short queue.</p>
+    <p>Inputs are not written to disk or logged. Recent results are kept in memory so a repeated request is instant. Open source under the MIT license.</p>
+  </footer>
+</main>
+
+<script>
+const SAMPLE = `9f2c1ab feat(editor): add keyboard shortcut to duplicate a block (#212)
+41d0e7c fix: images pasted from clipboard lost their alt text
+7c3b9d0 chore(deps): bump vite from 5.2.1 to 5.2.8
+e18a442 perf(search): debounce queries, results appear 2x faster
+0bb71f3 ci: run playwright on pull requests
+5a6d2c8 feat(export): export a page as PDF (#219)
+c9e04aa refactor: move toolbar state into a store
+3d7f1b2 fix(sync): offline edits were sometimes overwritten when reconnecting
+a2c4f90 test: add cases for markdown tables
+88e1d3f Merge pull request #220 from feature/pdf-export
+b6f0c17 docs: fix typo in CONTRIBUTING.md
+1e9a7d4 improve error message when an invite link has expired
+f03c2e9 feat!: drop support for Safari 15
+7ad4410 fix(ui): dark mode toggle not saved after reload`;
+
+const $ = (id) => document.getElementById(id);
+let mode = "text";
+$("text").value = SAMPLE;
+$("sample").onclick = () => { $("text").value = SAMPLE; };
+$("clear").onclick = () => { $("text").value = ""; $("text").focus(); };
+document.querySelectorAll(".tab").forEach((t) => t.onclick = () => {
+  mode = t.dataset.mode;
+  document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t));
+  $("mode-text").classList.toggle("hidden", mode !== "text");
+  $("mode-repo").classList.toggle("hidden", mode !== "repo");
+});
+
+const HEAD = { en: { new: "New", improved: "Improved", fixed: "Fixed" }, zh: { new: "新功能", improved: "改进", fixed: "修复" } };
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function setStatus(msg, err) { $("status").innerHTML = msg; $("status").classList.toggle("err", !!err); }
+
+function stat(label, value, cls) { return `<div class="stat ${cls || ""}"><b>${value}</b><span>${label}</span></div>`; }
+
+async function go() {
+  const lang = $("lang").value;
+  const body = { mode, lang, title: $("title").value.trim() };
+  if (mode === "text") body.text = $("text").value;
+  else Object.assign(body, { repo: $("repo").value, from: $("from").value, to: $("to").value });
+  if (mode === "text" && !body.text.trim()) return setStatus("Paste a few commits first.", true);
+  if (new Blob([JSON.stringify(body)]).size > 64 * 1024) return setStatus("That's over the 64 KB limit. Trim the range a little.", true);
+
+  $("go").disabled = true;
+  $("result").classList.remove("hidden");
+  $("live").innerHTML = ""; $("dropped").innerHTML = ""; $("stats").innerHTML = "";
+  $("md").textContent = "…"; $("announce").innerHTML = '<span class="spinner"></span>waiting for the notes…';
+  $("dropped-box").classList.add("hidden");
+  setStatus('<span class="spinner"></span>Reading commits…');
+  const sections = {};
+  let total = 0, done = 0, byModel = 0;
+  const t0 = performance.now();
+
+  try {
+    const res = await fetch("/api/notes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) {
+      let msg = `Request failed (${res.status}).`;
+      try { msg = (await res.json()).error || msg; } catch (_) { if (res.status === 429 || res.status === 503) msg = "Too many requests right now. Give it a minute."; }
+      throw new Error(msg);
+    }
+    const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
+    for (;;) {
+      const { value, done: end } = await reader.read();
+      if (end) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, i); buf = buf.slice(i + 1);
+        if (!line.trim()) continue;
+        const ev = JSON.parse(line);
+        if (ev.type === "source") {
+          setStatus(`<span class="spinner"></span>${esc(ev.owner + "/" + ev.repo)}: ${esc(ev.base)} → ${esc(ev.head)}, ${ev.total} commits${ev.truncated ? " (GitHub returns the first 250)" : ""}`);
+        } else if (ev.type === "queued") {
+          setStatus(`<span class="spinner"></span>Someone else is generating right now. You're next in line…`);
+        } else if (ev.type === "plan") {
+          total = ev.kept;
+          $("dropped-sum").textContent = `${ev.dropped} internal commit${ev.dropped === 1 ? "" : "s"} left out by the rules`;
+          $("dropped").innerHTML = ev.dropped_samples.map((d) => `<li>${esc(d.subject)} <span class="tag">${esc(d.why)}</span></li>`).join("");
+          $("dropped-box").classList.toggle("hidden", ev.dropped === 0);
+          setStatus(`<span class="spinner"></span>Kept ${ev.kept} of ${ev.total} commits. Gemma is rewriting ${ev.rewrites} of them…`);
+        } else if (ev.type === "item") {
+          done++; if (ev.by_model) byModel++;
+          if (!sections[ev.section]) {
+            const wrap = document.createElement("div");
+            wrap.innerHTML = `<h3 class="${ev.section}">${HEAD[lang][ev.section]}</h3><ul class="notes"></ul>`;
+            sections[ev.section] = wrap.querySelector("ul");
+            const order = ["new", "improved", "fixed"];
+            const before = order.slice(order.indexOf(ev.section) + 1).map((s) => sections[s]).find(Boolean);
+            before ? $("live").insertBefore(wrap, before.parentNode) : $("live").appendChild(wrap);
+          }
+          const li = document.createElement("li");
+          li.innerHTML = `${ev.breaking ? (lang === "zh" ? "<b>不兼容：</b>" : "<b>Breaking:</b> ") : ""}${esc(ev.note)}${ev.by_model ? "" : ' <span class="tag" title="The model\'s rewrite failed a check, so this line was phrased by rules from the original commit">by rules</span>'}<span class="orig">${esc(ev.original)}</span>`;
+          sections[ev.section].appendChild(li);
+          setStatus(`<span class="spinner"></span>Writing notes: ${done} of ${total}…`);
+        } else if (ev.type === "stage" && ev.stage === "summary") {
+          setStatus(`<span class="spinner"></span>All ${done} lines written. Writing the “What's new” announcement…`);
+        } else if (ev.type === "summary") {
+          $("announce").textContent = ev.text;
+        } else if (ev.type === "done") {
+          $("md").textContent = ev.markdown;
+          const s = ev.stats;
+          $("stats").innerHTML =
+            stat("tokens/sec (generation)", s.gen_tps ? s.gen_tps.toFixed(1) : "–") +
+            stat("tokens/sec (prompt)", s.prompt_tps ? s.prompt_tps.toFixed(0) : "–") +
+            stat("tokens generated", s.gen_tokens) +
+            stat("prompt tokens reused from cache", s.cached_tokens) +
+            stat(ev.cached ? "seconds (cached result)" : "seconds end to end", ((performance.now() - t0) / 1000).toFixed(1)) +
+            stat("cost", "$0.00", "cost");
+          const byRules = done - byModel;
+          setStatus(`Done. Gemma wrote ${done - byRules} of ${done} lines; ${byRules} marked “by rules” were phrased from the original commit. Model: ${esc(s.model)}.`);
+          if (total === 0) $("live").innerHTML = "<p>No customer-facing changes in this range.</p>";
+        } else if (ev.type === "error") {
+          throw new Error(ev.error);
+        }
+      }
+    }
+  } catch (e) {
+    setStatus(esc(e.message || "Something went wrong."), true);
+  } finally {
+    $("go").disabled = false;
+  }
+}
+$("go").onclick = go;
+
+function copy(id, btn) {
+  navigator.clipboard.writeText($(id).textContent).then(() => { const t = btn.textContent; btn.textContent = "Copied"; setTimeout(() => btn.textContent = t, 1200); });
+}
+$("copy-md").onclick = (e) => copy("md", e.target);
+$("copy-ann").onclick = (e) => copy("announce", e.target);
+</script>
+</body>
+</html>

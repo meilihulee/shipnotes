@@ -1,0 +1,27 @@
+[Unit]
+Description=ShipNotes model server (llama.cpp + Gemma 3 1B)
+After=network.target
+
+[Service]
+User=shipnotes
+Group=shipnotes
+WorkingDirectory=/opt/shipnotes
+# One thread, 2k context, one slot. --swa-full keeps Gemma's sliding-window
+# KV cache whole so the fixed prompt prefix can be reused between calls.
+ExecStart=/opt/shipnotes/bin/llama-server \
+  -m /opt/shipnotes/models/gemma-3-1b-it-Q4_K_M.gguf \
+  -c 2048 -t 1 -tb 1 -np 1 --swa-full \
+  --host 127.0.0.1 --port 8412 --no-ui
+Restart=on-failure
+RestartSec=5
+# Be a polite neighbour on a shared box.
+Nice=10
+CPUWeight=50
+MemoryMax=1300M
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
